@@ -13,7 +13,7 @@ matplotlib.rcParams['font.sans-serif'] = ['PingFang SC', 'Arial Unicode MS', 'He
 matplotlib.rcParams['axes.unicode_minus'] = False
 
 st.set_page_config(page_title="质检与满意度分析看板", layout="wide")
-st.title("多文件质检-满意度分析（含业务线、渠道、趋势与结论）")
+st.title("质检-满意度分析")
 
 # ====================== 上传多个文件 ======================
 uploaded_files = st.file_uploader(
