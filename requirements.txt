@@ -1,4 +1,5 @@
 streamlit
 plotly
+seaborn
 pandas
 openpyxl  # 用于读取 Excel 文件
