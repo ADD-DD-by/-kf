@@ -8,8 +8,7 @@ import matplotlib.pyplot as plt
 import statsmodels.api as sm
 from scipy import stats
 
-# ========== 中文字体（mac 优化） ==========
-matplotlib.rcParams['font.sans-serif'] = ['PingFang SC', 'Arial Unicode MS', 'Heiti SC', 'STHeiti']
+# ========== 字体配置（移除中文依赖） ==========
 matplotlib.rcParams['axes.unicode_minus'] = False
 
 st.set_page_config(page_title="质检与满意度分析看板", layout="wide")
@@ -94,7 +93,7 @@ if uploaded_files:
 
     fig_corr, ax_corr = plt.subplots(figsize=(6.5, 4.5), dpi=150)
     sns.heatmap(df[pass_cols + ["satisfied"]].corr(), annot=True, cmap="YlGnBu", fmt=".2f", ax=ax_corr)
-    ax_corr.set_title("质检项通过与满意度的相关性矩阵")
+    ax_corr.set_title("Correlation between QC Items and Satisfaction")
     st.pyplot(fig_corr)
 
     # ====================== 显著性检验 ======================
@@ -127,12 +126,13 @@ if uploaded_files:
     fig_bar, ax_bar = plt.subplots(figsize=(7.5, 4.5), dpi=150)
     sns.barplot(x="回归系数", y="指标项", data=coef_df, ax=ax_bar)
     ax_bar.axvline(0, color="gray", linestyle="--")
-    ax_bar.set_title("各质检项对满意度的影响（Logistic 回归系数）")
+    ax_bar.set_title("Impact of QC Items on Satisfaction (Logistic Coefficients)")
     for i, v in enumerate(coef_df["回归系数"].values):
         ax_bar.text(v + (0.01 if v >= 0 else -0.01), i, f"{v:.3f}",
                     va='center', ha='left' if v >= 0 else 'right', fontsize=9)
     st.pyplot(fig_bar)
-# ====================== 各质检项与满意度的关系可视化 ======================
+
+    # ====================== 各质检项与满意度的关系可视化 ======================
     st.subheader("不同质检项与满意度的关系")
 
     fig_scatter, axes = plt.subplots(2, 2, figsize=(9, 6), dpi=150)
@@ -143,9 +143,9 @@ if uploaded_files:
             data=df, x=col, y="score", ax=axes[i],
             jitter=0.25, alpha=0.5, palette="coolwarm"
         )
-        axes[i].set_title(f"{col} vs 客户评分", fontsize=10)
-        axes[i].set_xlabel("该项是否通过 (0=未通过, 1=通过)")
-        axes[i].set_ylabel("客户评分")
+        axes[i].set_title(f"{col} vs Score", fontsize=10)
+        axes[i].set_xlabel("Pass or Not (0=Fail, 1=Pass)")
+        axes[i].set_ylabel("Customer Score")
         axes[i].grid(alpha=0.2, linestyle="--")
 
     plt.tight_layout()
@@ -173,32 +173,32 @@ if uploaded_files:
               .reset_index()
               .sort_values("month")
         )
-        trend_df["满意率(%)"] = (trend_df["satisfied"] * 100).round(2)
-        trend_df["整体通过率(%)"] = (trend_df["overall_pass"] * 100).round(2)
+        trend_df["Satisfaction Rate (%)"] = (trend_df["satisfied"] * 100).round(2)
+        trend_df["Pass Rate (%)"] = (trend_df["overall_pass"] * 100).round(2)
 
         fig_trend, ax_trend = plt.subplots(figsize=(9, 4.5), dpi=150)
         x = np.arange(len(trend_df["month"]))
-        ax_trend.plot(x, trend_df["满意率(%)"], marker="o", linewidth=2, label="满意率(%)")
-        ax_trend.plot(x, trend_df["整体通过率(%)"], marker="o", linewidth=2, label="整体通过率(%)")
-        for i, v in enumerate(trend_df["满意率(%)"]):
+        ax_trend.plot(x, trend_df["Satisfaction Rate (%)"], marker="o", linewidth=2, label="Satisfaction Rate (%)")
+        ax_trend.plot(x, trend_df["Pass Rate (%)"], marker="o", linewidth=2, label="Pass Rate (%)")
+        for i, v in enumerate(trend_df["Satisfaction Rate (%)"]):
             ax_trend.annotate(f"{v:.1f}%", (x[i], v), textcoords="offset points", xytext=(0, 5), ha='center', fontsize=8)
-        for i, v in enumerate(trend_df["整体通过率(%)"]):
+        for i, v in enumerate(trend_df["Pass Rate (%)"]):
             ax_trend.annotate(f"{v:.1f}%", (x[i], v), textcoords="offset points", xytext=(0, -12), ha='center', fontsize=8)
         ax_trend.set_xticks(x)
         ax_trend.set_xticklabels(trend_df["month"], rotation=35, ha='right', fontsize=9)
-        ax_trend.set_ylabel("比例（%）", fontsize=9)
-        ax_trend.set_title("按月趋势：满意率 vs 整体质检通过率", fontsize=11)
+        ax_trend.set_ylabel("Percentage (%)", fontsize=9)
+        ax_trend.set_title("Monthly Trend: Satisfaction vs Pass Rate", fontsize=11)
         ax_trend.legend(fontsize=9)
         ax_trend.grid(alpha=0.2, linestyle="--")
         st.pyplot(fig_trend)
 
         st.subheader("自动结论解读")
         latest = trend_df.iloc[-1]
-        delta_sat = latest["满意率(%)"] - trend_df.iloc[0]["满意率(%)"]
-        delta_pass = latest["整体通过率(%)"] - trend_df.iloc[0]["整体通过率(%)"]
+        delta_sat = latest["Satisfaction Rate (%)"] - trend_df.iloc[0]["Satisfaction Rate (%)"]
+        delta_pass = latest["Pass Rate (%)"] - trend_df.iloc[0]["Pass Rate (%)"]
         msg = f"""
-        **1️⃣ 当前整体满意率：** {latest["满意率(%)"]:.1f}%（较首月 {'↑' if delta_sat>=0 else '↓'} {abs(delta_sat):.1f}%）  
-        **2️⃣ 当前整体质检通过率：** {latest["整体通过率(%)"]:.1f}%（较首月 {'↑' if delta_pass>=0 else '↓'} {abs(delta_pass):.1f}%）  
+        **1️⃣ 当前整体满意率：** {latest["Satisfaction Rate (%)"]:.1f}%（较首月 {'↑' if delta_sat>=0 else '↓'} {abs(delta_sat):.1f}%）  
+        **2️⃣ 当前整体质检通过率：** {latest["Pass Rate (%)"]:.1f}%（较首月 {'↑' if delta_pass>=0 else '↓'} {abs(delta_pass):.1f}%）  
         **3️⃣ 趋势关系：** {'同步上升 → 内部改进与客户感知一致。' if np.sign(delta_sat)==np.sign(delta_pass) else '方向不一致 → 可能存在标准与感知脱节。'}  
         **4️⃣ 关键影响指标：** {coef_df.iloc[0]['指标项']}（回归系数 {coef_df.iloc[0]['回归系数']:.3f}）。
         """
@@ -217,9 +217,9 @@ if uploaded_files:
         sns.scatterplot(data=biz_df, x="overall_pass", y="satisfied", hue=biz_df.index, s=120, ax=ax_biz)
         for i in biz_df.index:
             ax_biz.text(biz_df.loc[i, "overall_pass"]+0.3, biz_df.loc[i, "satisfied"], i, fontsize=9)
-        ax_biz.set_xlabel("整体质检通过率（%）")
-        ax_biz.set_ylabel("满意率（%）")
-        ax_biz.set_title("不同业务线质检与满意度关系")
+        ax_biz.set_xlabel("Overall Pass Rate (%)")
+        ax_biz.set_ylabel("Satisfaction Rate (%)")
+        ax_biz.set_title("Business Line: Pass Rate vs Satisfaction")
         ax_biz.grid(alpha=0.2, linestyle="--")
         st.pyplot(fig_biz)
 
@@ -236,9 +236,9 @@ if uploaded_files:
         sns.scatterplot(data=ch_df, x="overall_pass", y="satisfied", hue=ch_df.index, s=120, ax=ax_ch)
         for i in ch_df.index:
             ax_ch.text(ch_df.loc[i, "overall_pass"]+0.3, ch_df.loc[i, "satisfied"], i, fontsize=9)
-        ax_ch.set_xlabel("整体质检通过率（%）")
-        ax_ch.set_ylabel("满意率（%）")
-        ax_ch.set_title("不同渠道质检与满意度关系")
+        ax_ch.set_xlabel("Overall Pass Rate (%)")
+        ax_ch.set_ylabel("Satisfaction Rate (%)")
+        ax_ch.set_title("Channel: Pass Rate vs Satisfaction")
         ax_ch.grid(alpha=0.2, linestyle="--")
         st.pyplot(fig_ch)
 
