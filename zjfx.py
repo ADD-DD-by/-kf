@@ -139,18 +139,18 @@ if uploaded_files:
     st.pyplot(fig_bar)
 
     # ====================== 时间趋势 ======================
-st.subheader("时间趋势分析（按月）")
-if "质检时间" in df.columns:
-    dt = pd.to_datetime(df["质检时间"], errors="coerce")
-    df["month"] = dt.dt.to_period("M").astype(str)
-
-    trend_df = (
-        df.dropna(subset=["month"])
-          .groupby("month")[["satisfied", "overall_pass"]]
-          .mean()
-          .reset_index()
-          .sort_values("month")
-    )
+    st.subheader("时间趋势分析（按月）")
+    if "质检时间" in df.columns:
+        dt = pd.to_datetime(df["质检时间"], errors="coerce")
+        df["month"] = dt.dt.to_period("M").astype(str)
+    
+        trend_df = (
+            df.dropna(subset=["month"])
+              .groupby("month")[["satisfied", "overall_pass"]]
+              .mean()
+              .reset_index()
+              .sort_values("month")
+        )
 
     # 计算百分比
     trend_df["Satisfaction Rate (%)"] = (trend_df["satisfied"] * 100).round(2)
