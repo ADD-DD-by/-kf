@@ -127,26 +127,65 @@ if uploaded_files:
     st.pyplot(fig_bar)
 
     # ====================== 时间趋势 ======================
-    st.subheader("时间趋势分析（按月）")
-    if "质检时间" in df.columns:
-        dt = pd.to_datetime(df["质检时间"], errors="coerce")
-        df["month"] = dt.dt.to_period("M").astype(str)
-        trend_df = df.dropna(subset=["month"]).groupby("month")[["satisfied", "overall_pass"]].mean().reset_index()
-        trend_df["Satisfaction Rate (%)"] = trend_df["satisfied"] * 100
-        trend_df["Pass Rate (%)"] = trend_df["overall_pass"] * 100
+st.subheader("时间趋势分析（按月）")
+if "质检时间" in df.columns:
+    dt = pd.to_datetime(df["质检时间"], errors="coerce")
+    df["month"] = dt.dt.to_period("M").astype(str)
 
-        fig_trend, ax_trend = plt.subplots(figsize=(9, 4.5), dpi=150)
-        x = np.arange(len(trend_df))
-        ax_trend.plot(x, trend_df["Satisfaction Rate (%)"], marker="o", label="Satisfaction Rate")
-        ax_trend.plot(x, trend_df["Pass Rate (%)"], marker="o", label="Pass Rate")
-        ax_trend.set_xticks(x)
-        ax_trend.set_xticklabels(trend_df["month"], rotation=35, ha='right', fontsize=9)
-        ax_trend.set_xlabel("Month")
-        ax_trend.set_ylabel("Percentage (%)")
-        ax_trend.set_title("Monthly Trend: Satisfaction vs Pass Rate")
-        ax_trend.legend()
-        st.pyplot(fig_trend)
+    trend_df = (
+        df.dropna(subset=["month"])
+          .groupby("month")[["satisfied", "overall_pass"]]
+          .mean()
+          .reset_index()
+          .sort_values("month")
+    )
 
+    # 计算百分比
+    trend_df["Satisfaction Rate (%)"] = (trend_df["satisfied"] * 100).round(2)
+    trend_df["Pass Rate (%)"] = (trend_df["overall_pass"] * 100).round(2)
+
+    # 绘图
+    fig_trend, ax_trend = plt.subplots(figsize=(9, 4.5), dpi=150)
+    x = np.arange(len(trend_df["month"]))
+    y1 = trend_df["Satisfaction Rate (%)"]
+    y2 = trend_df["Pass Rate (%)"]
+
+    # 折线绘制
+    ax_trend.plot(x, y1, marker="o", linewidth=2.2, label="Satisfaction Rate (%)", color="#1f77b4")
+    ax_trend.plot(x, y2, marker="o", linewidth=2.2, label="Pass Rate (%)", color="#ff7f0e")
+
+    # ========== 数据标签 ==========
+    for i, (v1, v2) in enumerate(zip(y1, y2)):
+        ax_trend.annotate(
+            f"{v1:.1f}%", (x[i], v1),
+            textcoords="offset points", xytext=(0, 6), ha="center",
+            fontsize=8.5, color="#1f77b4", weight="bold"
+        )
+        ax_trend.annotate(
+            f"{v2:.1f}%", (x[i], v2),
+            textcoords="offset points", xytext=(0, -12), ha="center",
+            fontsize=8.5, color="#ff7f0e", weight="bold"
+        )
+
+    # 坐标与样式
+    ax_trend.set_xticks(x)
+    ax_trend.set_xticklabels(trend_df["month"], rotation=30, ha="right", fontsize=9)
+    ax_trend.set_ylabel("Percentage (%)", fontsize=9)
+    ax_trend.set_title("Monthly Trend: Satisfaction vs Pass Rate", fontsize=11, pad=12)
+    ax_trend.grid(alpha=0.25, linestyle="--", linewidth=0.5)
+    ax_trend.legend(fontsize=9, loc="best", frameon=True)
+    st.pyplot(fig_trend)
+
+    # 自动结论
+    latest = trend_df.iloc[-1]
+    delta_sat = latest["Satisfaction Rate (%)"] - trend_df.iloc[0]["Satisfaction Rate (%)"]
+    delta_pass = latest["Pass Rate (%)"] - trend_df.iloc[0]["Pass Rate (%)"]
+    msg = f"""
+    **1️⃣ 当前整体满意率：** {latest["Satisfaction Rate (%)"]:.1f}%（较首月 {'↑' if delta_sat>=0 else '↓'} {abs(delta_sat):.1f}%）  
+    **2️⃣ 当前整体质检通过率：** {latest["Pass Rate (%)"]:.1f}%（较首月 {'↑' if delta_pass>=0 else '↓'} {abs(delta_pass):.1f}%）  
+    **3️⃣ 趋势关系：** {'同步上升 → 内部改进与客户感知一致。' if np.sign(delta_sat)==np.sign(delta_pass) else '方向不一致 → 可能存在标准与感知脱节。'}
+    """
+    st.markdown(msg)
 
  # ====================== 分业务线分析（英文显示） ======================
     if "business_line" in df.columns:
