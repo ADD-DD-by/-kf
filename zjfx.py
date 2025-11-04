@@ -68,20 +68,23 @@ if uploaded_files:
     df["overall_pass"] = np.where((df[pass_cols].sum(axis=1) == 4), 1, 0)
 
     st.markdown("""
-    ✅ **清洗逻辑说明：**
+    1. **清洗逻辑说明：**
     - 剔除未打分记录；
     - `'-'` 自动识别为空；
     - `response_speed` 空视为通过；
     - 四项均为 1 为整体通过；
     - 打分 ≥ 4 判定为满意；
     - 支持多文件合并。
-    ✅ **字段说明**
-    质检项
+    
+   2. **字段说明**
+    
+    -- 质检项
     - solution 解决方案
     - service_attitude 服务态度
     - response_speed 响应速度
     - case_classification 问题分类
-    业务线
+    
+    -- 业务线
     - Brand Line 品牌线
     - Trade Line 贸易线
     """)
