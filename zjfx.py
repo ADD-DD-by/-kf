@@ -147,21 +147,44 @@ if uploaded_files:
         ax_trend.legend()
         st.pyplot(fig_trend)
 
-    # ====================== 分业务线分析（修复图例） ======================
+
+ # ====================== 分业务线分析（英文显示） ======================
     if "business_line" in df.columns:
         st.subheader("分业务线分析")
-        biz_df = df.groupby("business_line")[pass_cols + ["overall_pass", "satisfied"]].mean().apply(lambda x: round(x * 100, 2))
-        biz_df_reset = biz_df.reset_index().rename(columns={"index": "business_line"})
-        st.dataframe(biz_df)
+    
+        # 中文转英文映射
+        biz_map = {
+            "贸易线": "Trade Line",
+            "品牌线": "Brand Line",
+            "不清晰": "no clear",
+        }
+        df["business_line_en"] = df["business_line"].map(biz_map).fillna(df["business_line"])
+    
+        biz_df = (
+            df.groupby(["business_line", "business_line_en"])[pass_cols + ["overall_pass", "satisfied"]]
+            .mean()
+            .apply(lambda x: round(x * 100, 2))
+            .reset_index()
+        )
+    
+        st.dataframe(biz_df[["business_line"] + pass_cols + ["overall_pass", "satisfied"]])
+    
         fig_biz, ax_biz = plt.subplots(figsize=(8, 4.5), dpi=150)
-        sns.scatterplot(data=biz_df_reset, x="overall_pass", y="satisfied", hue="business_line", s=120, ax=ax_biz)
-        for _, row in biz_df_reset.iterrows():
-            ax_biz.text(row["overall_pass"] + 0.3, row["satisfied"], row["business_line"], fontsize=9)
+        sns.scatterplot(
+            data=biz_df,
+            x="overall_pass", y="satisfied",
+            hue="business_line_en", s=120, ax=ax_biz
+        )
+        for _, row in biz_df.iterrows():
+            ax_biz.text(row["overall_pass"] + 0.3, row["satisfied"], row["business_line_en"], fontsize=9)
+    
         ax_biz.set_xlabel("Overall Pass Rate (%)")
         ax_biz.set_ylabel("Satisfaction Rate (%)")
         ax_biz.set_title("Business Line: Pass Rate vs Satisfaction")
         ax_biz.legend(title="Business Line", bbox_to_anchor=(1.05, 1), loc='upper left')
+        ax_biz.grid(alpha=0.2, linestyle="--")
         st.pyplot(fig_biz)
+
 
     # ====================== 分渠道分析 ======================
     if "ticket_channel" in df.columns:
