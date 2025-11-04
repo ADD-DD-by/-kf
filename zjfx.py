@@ -159,12 +159,12 @@ if "质检时间" in df.columns:
         ax_trend.annotate(
             f"{v1:.1f}%", (x[i], v1),
             textcoords="offset points", xytext=(0, 6), ha="center",
-            fontsize=8.5, color="#1f77b4", weight="bold"
+            fontsize=8.5, color="#1f77b4"
         )
         ax_trend.annotate(
             f"{v2:.1f}%", (x[i], v2),
             textcoords="offset points", xytext=(0, -12), ha="center",
-            fontsize=8.5, color="#ff7f0e", weight="bold"
+            fontsize=8.5, color="#ff7f0e"
         )
 
     # 坐标与样式
