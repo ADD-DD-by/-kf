@@ -75,6 +75,15 @@ if uploaded_files:
     - 四项均为 1 为整体通过；
     - 打分 ≥ 4 判定为满意；
     - 支持多文件合并。
+    ✅ **字段说明**
+    质检项
+    - solution 解决方案
+    - service_attitude 服务态度
+    - response_speed 响应速度
+    - case_classification 问题分类
+    业务线
+    - Brand Line 品牌线
+    - Trade Line 贸易线
     """)
 
     # ====================== 汇总统计 ======================
