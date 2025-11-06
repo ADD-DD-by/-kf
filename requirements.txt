@@ -1,20 +1,13 @@
 streamlit
 numpy
-plotly
-seaborn
 pandas
-openpyxl  # 用于读取 Excel 文件
+openpyxl
+seaborn
+plotly
+matplotlib
 statsmodels
 scikit-learn
 scipy
-itertools
-math
-io
-base64
-zipfile
-datetime
-os
 shap
 lifelines
 python-docx
-matplotlib
