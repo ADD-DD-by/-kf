@@ -1,10 +1,11 @@
 streamlit
+numpy
 plotly
 seaborn
 pandas
 openpyxl  # 用于读取 Excel 文件
 statsmodels
-sklearn
+scikit-learn
 scipy
 itertools
 math
@@ -13,3 +14,7 @@ base64
 zipfile
 datetime
 os
+shap
+lifelines
+python-docx
+matplotlib
