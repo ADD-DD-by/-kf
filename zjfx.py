@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import statsmodels.api as sm
 from scipy import stats
 
-# ========== 字体配置（去除中文依赖） ==========
+# ========== 图表设置 ==========
 matplotlib.rcParams['axes.unicode_minus'] = False
 
 st.set_page_config(page_title="质检与满意度分析看板", layout="wide")
@@ -88,7 +88,7 @@ if uploaded_files:
     st.subheader("相关性分析（Pearson）")
     fig_corr, ax_corr = plt.subplots(figsize=(6.5, 4.5), dpi=150)
     sns.heatmap(df[pass_cols + ["satisfied"]].corr(), annot=True, cmap="YlGnBu", fmt=".2f", ax=ax_corr)
-    ax_corr.set_title("Correlation between QC Items and Satisfaction")
+    ax_corr.set_title("Correlation between QC Items and Satisfaction", fontsize=11)
     st.pyplot(fig_corr)
 
     # ====================== 显著性检验 ======================
@@ -119,20 +119,16 @@ if uploaded_files:
     fig_bar, ax_bar = plt.subplots(figsize=(7.5, 4.5), dpi=150)
     sns.barplot(x="回归系数", y="指标项", data=coef_df, ax=ax_bar)
     ax_bar.axvline(0, color="gray", linestyle="--")
-    ax_bar.set_xlabel("Regression Coefficient")
-    ax_bar.set_ylabel("QC Item")
-    ax_bar.set_title("Impact of QC Items on Satisfaction (Logistic Coefficients)")
-    for i, v in enumerate(coef_df["回归系数"].values):
-        ax_bar.text(v + (0.01 if v >= 0 else -0.01), i, f"{v:.3f}",
-                    va='center', ha='left' if v >= 0 else 'right', fontsize=9)
+    ax_bar.set_xlabel("Regression Coefficient", fontsize=10)
+    ax_bar.set_ylabel("QC Item", fontsize=10)
+    ax_bar.set_title("Impact of QC Items on Satisfaction", fontsize=11)
     st.pyplot(fig_bar)
 
-    # ====================== ✅ 两两组合交互分析 ======================
+    # ====================== 两两组合交互分析 ======================
     st.subheader("两两组合对满意度的影响（交互项分析）")
 
     comb_results = []
     interaction_cols = []
-
     for i in range(len(pass_cols)):
         for j in range(i + 1, len(pass_cols)):
             c1, c2 = pass_cols[i], pass_cols[j]
@@ -143,12 +139,12 @@ if uploaded_files:
             combo_group = (
                 df.groupby(combo_name)["satisfied"]
                   .agg(["mean", "count"])
-                  .rename(columns={"mean": "满意率", "count": "样本量"})
+                  .rename(columns={"mean": "SatisfactionRate", "count": "SampleSize"})
                   .reset_index()
             )
 
             if len(combo_group) == 2:
-                diff = combo_group.loc[1, "满意率"] - combo_group.loc[0, "满意率"]
+                diff = combo_group.loc[1, "SatisfactionRate"] - combo_group.loc[0, "SatisfactionRate"]
                 t, p = stats.ttest_ind(
                     df[df[combo_name] == 1]["satisfied"],
                     df[df[combo_name] == 0]["satisfied"],
@@ -156,8 +152,8 @@ if uploaded_files:
                 )
                 comb_results.append({
                     "组合": combo_name,
-                    "交互通过组满意率": round(combo_group.loc[1, "满意率"], 3),
-                    "未交互组满意率": round(combo_group.loc[0, "满意率"], 3),
+                    "交互通过组满意率": round(combo_group.loc[1, "SatisfactionRate"], 3),
+                    "未交互组满意率": round(combo_group.loc[0, "SatisfactionRate"], 3),
                     "差异": round(diff, 3),
                     "p值": round(p, 4)
                 })
@@ -167,7 +163,6 @@ if uploaded_files:
 
     st.subheader("交互项 Logistic 回归分析")
     X_interact = sm.add_constant(df[pass_cols + interaction_cols])
-    y = df["satisfied"]
     logit_interact = sm.Logit(y, X_interact).fit(disp=False)
     coef_inter_df = pd.DataFrame({
         "变量": logit_interact.params.index[1:],
@@ -184,12 +179,14 @@ if uploaded_files:
         fig_int, ax_int = plt.subplots(figsize=(7.5, 4.5), dpi=150)
         sns.barplot(x="回归系数", y="变量", data=sig_inter, ax=ax_int)
         ax_int.axvline(0, color="gray", linestyle="--")
-        ax_int.set_title("显著交互项对满意度的影响")
+        ax_int.set_xlabel("Regression Coefficient")
+        ax_int.set_ylabel("Interaction Term")
+        ax_int.set_title("Significant Interaction Effects on Satisfaction")
         st.pyplot(fig_int)
     else:
         st.info("没有显著的两两交互项（p < 0.05）")
 
-    # ====================== 自动结论生成模块 ======================
+    # ====================== 自动结论 ======================
     st.subheader("📊 自动生成结论与质检标准优化建议")
 
     try:
@@ -199,16 +196,16 @@ if uploaded_files:
             lowest_item = sig_items.sort_values("回归系数", ascending=True).iloc[0]["指标项"]
 
             st.markdown(f"""
-            **1️⃣ 最显著提升满意度的质检项：** `{key_item}`  
-            → 建议优先优化该项标准、强化一致性与执行深度。
+            **1️⃣ 当前最显著提升满意度的质检项：** `{key_item}`  
+            → 建议优先优化该项标准，强化一致性。
 
             **2️⃣ 显示负向相关的质检项：** `{lowest_item}`  
-            → 说明标准可能过严或定义模糊，建议复核打分逻辑。
+            → 说明该项标准可能过严或定义模糊，建议复核判定逻辑。
 
             **3️⃣ 若发现“通过率上升但满意度下降”，需重点复盘：**
             - 可能是“标准偏离客户感知”；
             - 或“服务交付与质检判定不一致”；
-            - 建议结合质检文本样本，细化二级维度定义。
+            - 建议结合质检样本，细化二级维度定义。
             """)
         else:
             st.info("暂无显著性指标，当前数据不足以得出调整建议。")
@@ -236,15 +233,14 @@ if uploaded_files:
               .sort_values("month")
         )
 
-        trend_df["Satisfaction Rate (%)"] = (trend_df["satisfied"] * 100).round(2)
+        trend_df["Satisfaction (%)"] = (trend_df["satisfied"] * 100).round(2)
         trend_df["Pass Rate (%)"] = (trend_df["overall_pass"] * 100).round(2)
 
         fig_trend, ax_trend = plt.subplots(figsize=(9, 4.5), dpi=150)
         x = np.arange(len(trend_df["month"]))
-        y1 = trend_df["Satisfaction Rate (%)"]
-        y2 = trend_df["Pass Rate (%)"]
+        y1, y2 = trend_df["Satisfaction (%)"], trend_df["Pass Rate (%)"]
 
-        ax_trend.plot(x, y1, marker="o", linewidth=2.2, label="Satisfaction Rate (%)", color="#1f77b4")
+        ax_trend.plot(x, y1, marker="o", linewidth=2.2, label="Satisfaction (%)", color="#1f77b4")
         ax_trend.plot(x, y2, marker="o", linewidth=2.2, label="Pass Rate (%)", color="#ff7f0e")
 
         for i, (v1, v2) in enumerate(zip(y1, y2)):
@@ -255,13 +251,13 @@ if uploaded_files:
 
         ax_trend.set_xticks(x)
         ax_trend.set_xticklabels(trend_df["month"], rotation=30, ha="right", fontsize=9)
-        ax_trend.set_ylabel("Percentage (%)", fontsize=9)
-        ax_trend.set_title("Monthly Trend: Satisfaction vs Pass Rate", fontsize=11, pad=12)
+        ax_trend.set_ylabel("Percentage (%)")
+        ax_trend.set_title("Monthly Trend: Satisfaction vs Pass Rate", fontsize=11)
         ax_trend.grid(alpha=0.25, linestyle="--", linewidth=0.5)
         ax_trend.legend(fontsize=9, loc="best", frameon=True)
         st.pyplot(fig_trend)
 
-    st.success("✅ 全部分析与自动结论生成完毕。")
+    st.success("✅ 全部分析完成。")
 
 else:
     st.info("请上传多个质检文件后开始分析。")
