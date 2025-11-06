@@ -23,8 +23,8 @@ from sklearn.neighbors import NearestNeighbors
 
 matplotlib.rcParams['axes.unicode_minus'] = False
 
-st.set_page_config(page_title="质检与满意度分析（进阶版）", layout="wide")
-st.title("质检-满意度分析（进阶版）")
+st.set_page_config(page_title="质检与满意度分析", layout="wide")
+st.title("质检-满意度分析")
 
 # ====================== 图表/表格注册器（用于导出） ======================
 fig_registry = {}   # {name: matplotlib.figure.Figure}
