@@ -45,6 +45,7 @@ if uploaded_files:
         if c not in df.columns:
             st.error(f"❌ 缺少字段：{c}")
             st.stop()
+
     df = df.replace("-", np.nan)
     df = df[df["score"].notna()].copy()
     df["response_speed"] = df["response_speed"].fillna(1)
@@ -68,25 +69,13 @@ if uploaded_files:
     df["overall_pass"] = np.where((df[pass_cols].sum(axis=1) == 4), 1, 0)
 
     st.markdown("""
-    1. **清洗逻辑说明：**
+    **清洗逻辑说明：**
     - 剔除未打分记录；
     - `'-'` 自动识别为空；
     - `response_speed` 空视为通过；
     - 四项均为 1 为整体通过；
     - 打分 ≥ 4 判定为满意；
     - 支持多文件合并。
-    
-   2. **字段说明：**
-    
-    -- 质检项
-    - solution 解决方案
-    - service_attitude 服务态度
-    - response_speed 响应速度
-    - case_classification 问题分类
-    
-    -- 业务线
-    - Brand Line 品牌线
-    - Trade Line 贸易线
     """)
 
     # ====================== 汇总统计 ======================
@@ -137,27 +126,27 @@ if uploaded_files:
         ax_bar.text(v + (0.01 if v >= 0 else -0.01), i, f"{v:.3f}",
                     va='center', ha='left' if v >= 0 else 'right', fontsize=9)
     st.pyplot(fig_bar)
-    # ====================== 两两组合交互分析 ======================
+
+    # ====================== ✅ 两两组合交互分析 ======================
     st.subheader("两两组合对满意度的影响（交互项分析）")
-    
+
     comb_results = []
-    
+    interaction_cols = []
+
     for i in range(len(pass_cols)):
         for j in range(i + 1, len(pass_cols)):
             c1, c2 = pass_cols[i], pass_cols[j]
             combo_name = f"{c1} × {c2}"
-            
-            # 交互项
             df[combo_name] = df[c1] * df[c2]
-    
-            # 分组统计满意率
+            interaction_cols.append(combo_name)
+
             combo_group = (
                 df.groupby(combo_name)["satisfied"]
                   .agg(["mean", "count"])
                   .rename(columns={"mean": "满意率", "count": "样本量"})
                   .reset_index()
             )
-            
+
             if len(combo_group) == 2:
                 diff = combo_group.loc[1, "满意率"] - combo_group.loc[0, "满意率"]
                 t, p = stats.ttest_ind(
@@ -172,26 +161,25 @@ if uploaded_files:
                     "差异": round(diff, 3),
                     "p值": round(p, 4)
                 })
-    
+
     combo_df = pd.DataFrame(comb_results)
     st.dataframe(combo_df)
-    
-    # 可视化：交互项系数（Logistic 回归）
+
     st.subheader("交互项 Logistic 回归分析")
-    X_interact = sm.add_constant(df[[*pass_cols] + [f"{c1} × {c2}" for c1 in pass_cols for c2 in pass_cols if c1 < c2]])
+    X_interact = sm.add_constant(df[pass_cols + interaction_cols])
     y = df["satisfied"]
-    
     logit_interact = sm.Logit(y, X_interact).fit(disp=False)
     coef_inter_df = pd.DataFrame({
-        "变量": logit_interact.params.index[1:],  # 去掉 const
+        "变量": logit_interact.params.index[1:],
         "回归系数": logit_interact.params.values[1:],
         "p值": logit_interact.pvalues.values[1:]
     }).sort_values("回归系数", ascending=False)
-    
     st.dataframe(coef_inter_df.style.background_gradient(cmap="RdYlGn", axis=0))
-    
-    # 可选：筛选显著交互项绘图
-    sig_inter = coef_inter_df[(coef_inter_df["p值"] < 0.05) & (coef_inter_df["变量"].str.contains("×"))]
+
+    sig_inter = coef_inter_df[
+        (coef_inter_df["p值"] < 0.05) &
+        (coef_inter_df["变量"].isin(interaction_cols))
+    ]
     if not sig_inter.empty:
         fig_int, ax_int = plt.subplots(figsize=(7.5, 4.5), dpi=150)
         sns.barplot(x="回归系数", y="变量", data=sig_inter, ax=ax_int)
@@ -201,12 +189,45 @@ if uploaded_files:
     else:
         st.info("没有显著的两两交互项（p < 0.05）")
 
+    # ====================== 自动结论生成模块 ======================
+    st.subheader("📊 自动生成结论与质检标准优化建议")
+
+    try:
+        sig_items = coef_df[coef_df["p值"] < 0.05]
+        if not sig_items.empty:
+            key_item = sig_items.sort_values("回归系数", ascending=False).iloc[0]["指标项"]
+            lowest_item = sig_items.sort_values("回归系数", ascending=True).iloc[0]["指标项"]
+
+            st.markdown(f"""
+            **1️⃣ 最显著提升满意度的质检项：** `{key_item}`  
+            → 建议优先优化该项标准、强化一致性与执行深度。
+
+            **2️⃣ 显示负向相关的质检项：** `{lowest_item}`  
+            → 说明标准可能过严或定义模糊，建议复核打分逻辑。
+
+            **3️⃣ 若发现“通过率上升但满意度下降”，需重点复盘：**
+            - 可能是“标准偏离客户感知”；
+            - 或“服务交付与质检判定不一致”；
+            - 建议结合质检文本样本，细化二级维度定义。
+            """)
+        else:
+            st.info("暂无显著性指标，当前数据不足以得出调整建议。")
+
+        if not sig_inter.empty:
+            inter_item = sig_inter.iloc[0]["变量"]
+            st.markdown(f"""
+            **4️⃣ 存在显著交互项：** `{inter_item}`  
+            → 该组合（如“方案 × 响应速度”）对满意度影响显著，说明两项需联合考核。
+            """)
+    except Exception as e:
+        st.warning(f"⚠️ 自动结论生成失败：{e}")
+
     # ====================== 时间趋势 ======================
     st.subheader("时间趋势分析（按月）")
     if "质检时间" in df.columns:
         dt = pd.to_datetime(df["质检时间"], errors="coerce")
         df["month"] = dt.dt.to_period("M").astype(str)
-    
+
         trend_df = (
             df.dropna(subset=["month"])
               .groupby("month")[["satisfied", "overall_pass"]]
@@ -215,108 +236,32 @@ if uploaded_files:
               .sort_values("month")
         )
 
-    # 计算百分比
-    trend_df["Satisfaction Rate (%)"] = (trend_df["satisfied"] * 100).round(2)
-    trend_df["Pass Rate (%)"] = (trend_df["overall_pass"] * 100).round(2)
+        trend_df["Satisfaction Rate (%)"] = (trend_df["satisfied"] * 100).round(2)
+        trend_df["Pass Rate (%)"] = (trend_df["overall_pass"] * 100).round(2)
 
-    # 绘图
-    fig_trend, ax_trend = plt.subplots(figsize=(9, 4.5), dpi=150)
-    x = np.arange(len(trend_df["month"]))
-    y1 = trend_df["Satisfaction Rate (%)"]
-    y2 = trend_df["Pass Rate (%)"]
+        fig_trend, ax_trend = plt.subplots(figsize=(9, 4.5), dpi=150)
+        x = np.arange(len(trend_df["month"]))
+        y1 = trend_df["Satisfaction Rate (%)"]
+        y2 = trend_df["Pass Rate (%)"]
 
-    # 折线绘制
-    ax_trend.plot(x, y1, marker="o", linewidth=2.2, label="Satisfaction Rate (%)", color="#1f77b4")
-    ax_trend.plot(x, y2, marker="o", linewidth=2.2, label="Pass Rate (%)", color="#ff7f0e")
+        ax_trend.plot(x, y1, marker="o", linewidth=2.2, label="Satisfaction Rate (%)", color="#1f77b4")
+        ax_trend.plot(x, y2, marker="o", linewidth=2.2, label="Pass Rate (%)", color="#ff7f0e")
 
-    # ========== 数据标签 ==========
-    for i, (v1, v2) in enumerate(zip(y1, y2)):
-        ax_trend.annotate(
-            f"{v1:.1f}%", (x[i], v1),
-            textcoords="offset points", xytext=(0, 6), ha="center",
-            fontsize=8.5, color="#1f77b4"
-        )
-        ax_trend.annotate(
-            f"{v2:.1f}%", (x[i], v2),
-            textcoords="offset points", xytext=(0, -12), ha="center",
-            fontsize=8.5, color="#ff7f0e"
-        )
+        for i, (v1, v2) in enumerate(zip(y1, y2)):
+            ax_trend.annotate(f"{v1:.1f}%", (x[i], v1), textcoords="offset points", xytext=(0, 6),
+                              ha="center", fontsize=8.5, color="#1f77b4")
+            ax_trend.annotate(f"{v2:.1f}%", (x[i], v2), textcoords="offset points", xytext=(0, -12),
+                              ha="center", fontsize=8.5, color="#ff7f0e")
 
-    # 坐标与样式
-    ax_trend.set_xticks(x)
-    ax_trend.set_xticklabels(trend_df["month"], rotation=30, ha="right", fontsize=9)
-    ax_trend.set_ylabel("Percentage (%)", fontsize=9)
-    ax_trend.set_title("Monthly Trend: Satisfaction vs Pass Rate", fontsize=11, pad=12)
-    ax_trend.grid(alpha=0.25, linestyle="--", linewidth=0.5)
-    ax_trend.legend(fontsize=9, loc="best", frameon=True)
-    st.pyplot(fig_trend)
+        ax_trend.set_xticks(x)
+        ax_trend.set_xticklabels(trend_df["month"], rotation=30, ha="right", fontsize=9)
+        ax_trend.set_ylabel("Percentage (%)", fontsize=9)
+        ax_trend.set_title("Monthly Trend: Satisfaction vs Pass Rate", fontsize=11, pad=12)
+        ax_trend.grid(alpha=0.25, linestyle="--", linewidth=0.5)
+        ax_trend.legend(fontsize=9, loc="best", frameon=True)
+        st.pyplot(fig_trend)
 
-    # 自动结论
-    latest = trend_df.iloc[-1]
-    delta_sat = latest["Satisfaction Rate (%)"] - trend_df.iloc[0]["Satisfaction Rate (%)"]
-    delta_pass = latest["Pass Rate (%)"] - trend_df.iloc[0]["Pass Rate (%)"]
-    msg = f"""
-    **1️⃣ 当前整体满意率：** {latest["Satisfaction Rate (%)"]:.1f}%（较首月 {'↑' if delta_sat>=0 else '↓'} {abs(delta_sat):.1f}%）  
-    **2️⃣ 当前整体质检通过率：** {latest["Pass Rate (%)"]:.1f}%（较首月 {'↑' if delta_pass>=0 else '↓'} {abs(delta_pass):.1f}%）  
-    **3️⃣ 趋势关系：** {'同步上升 → 内部改进与客户感知一致。' if np.sign(delta_sat)==np.sign(delta_pass) else '方向不一致 → 可能存在标准与感知脱节。'}
-    """
-    st.markdown(msg)
-
- # ====================== 分业务线分析（英文显示） ======================
-    if "business_line" in df.columns:
-        st.subheader("分业务线分析")
-    
-        # 中文转英文映射
-        biz_map = {
-            "贸易线": "Trade Line",
-            "品牌线": "Brand Line",
-            "不清晰": "no clear",
-        }
-        df["business_line_en"] = df["business_line"].map(biz_map).fillna(df["business_line"])
-    
-        biz_df = (
-            df.groupby(["business_line", "business_line_en"])[pass_cols + ["overall_pass", "satisfied"]]
-            .mean()
-            .apply(lambda x: round(x * 100, 2))
-            .reset_index()
-        )
-    
-        st.dataframe(biz_df[["business_line"] + pass_cols + ["overall_pass", "satisfied"]])
-    
-        fig_biz, ax_biz = plt.subplots(figsize=(8, 4.5), dpi=150)
-        sns.scatterplot(
-            data=biz_df,
-            x="overall_pass", y="satisfied",
-            hue="business_line_en", s=120, ax=ax_biz
-        )
-        for _, row in biz_df.iterrows():
-            ax_biz.text(row["overall_pass"] + 0.3, row["satisfied"], row["business_line_en"], fontsize=9)
-    
-        ax_biz.set_xlabel("Overall Pass Rate (%)")
-        ax_biz.set_ylabel("Satisfaction Rate (%)")
-        ax_biz.set_title("Business Line: Pass Rate vs Satisfaction")
-        ax_biz.legend(title="Business Line", bbox_to_anchor=(1.05, 1), loc='upper left')
-        ax_biz.grid(alpha=0.2, linestyle="--")
-        st.pyplot(fig_biz)
-
-
-    # ====================== 分渠道分析 ======================
-    if "ticket_channel" in df.columns:
-        st.subheader("分渠道分析")
-        ch_df = df.groupby("ticket_channel")[pass_cols + ["overall_pass", "satisfied"]].mean().apply(lambda x: round(x * 100, 2))
-        ch_df_reset = ch_df.reset_index().rename(columns={"index": "ticket_channel"})
-        st.dataframe(ch_df)
-        fig_ch, ax_ch = plt.subplots(figsize=(8, 4.5), dpi=150)
-        sns.scatterplot(data=ch_df_reset, x="overall_pass", y="satisfied", hue="ticket_channel", s=120, ax=ax_ch)
-        for _, row in ch_df_reset.iterrows():
-            ax_ch.text(row["overall_pass"] + 0.3, row["satisfied"], row["ticket_channel"], fontsize=9)
-        ax_ch.set_xlabel("Overall Pass Rate (%)")
-        ax_ch.set_ylabel("Satisfaction Rate (%)")
-        ax_ch.set_title("Channel: Pass Rate vs Satisfaction")
-        ax_ch.legend(title="Channel", bbox_to_anchor=(1.05, 1), loc='upper left')
-        st.pyplot(fig_ch)
-
-    st.success("✅ 分析完成，所有图表已优化显示。")
+    st.success("✅ 全部分析与自动结论生成完毕。")
 
 else:
     st.info("请上传多个质检文件后开始分析。")
