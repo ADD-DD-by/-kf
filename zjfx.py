@@ -137,6 +137,69 @@ if uploaded_files:
         ax_bar.text(v + (0.01 if v >= 0 else -0.01), i, f"{v:.3f}",
                     va='center', ha='left' if v >= 0 else 'right', fontsize=9)
     st.pyplot(fig_bar)
+    # ====================== 两两组合交互分析 ======================
+    st.subheader("两两组合对满意度的影响（交互项分析）")
+    
+    comb_results = []
+    
+    for i in range(len(pass_cols)):
+        for j in range(i + 1, len(pass_cols)):
+            c1, c2 = pass_cols[i], pass_cols[j]
+            combo_name = f"{c1} × {c2}"
+            
+            # 交互项
+            df[combo_name] = df[c1] * df[c2]
+    
+            # 分组统计满意率
+            combo_group = (
+                df.groupby(combo_name)["satisfied"]
+                  .agg(["mean", "count"])
+                  .rename(columns={"mean": "满意率", "count": "样本量"})
+                  .reset_index()
+            )
+            
+            if len(combo_group) == 2:
+                diff = combo_group.loc[1, "满意率"] - combo_group.loc[0, "满意率"]
+                t, p = stats.ttest_ind(
+                    df[df[combo_name] == 1]["satisfied"],
+                    df[df[combo_name] == 0]["satisfied"],
+                    equal_var=False
+                )
+                comb_results.append({
+                    "组合": combo_name,
+                    "交互通过组满意率": round(combo_group.loc[1, "满意率"], 3),
+                    "未交互组满意率": round(combo_group.loc[0, "满意率"], 3),
+                    "差异": round(diff, 3),
+                    "p值": round(p, 4)
+                })
+    
+    combo_df = pd.DataFrame(comb_results)
+    st.dataframe(combo_df)
+    
+    # 可视化：交互项系数（Logistic 回归）
+    st.subheader("交互项 Logistic 回归分析")
+    X_interact = sm.add_constant(df[[*pass_cols] + [f"{c1} × {c2}" for c1 in pass_cols for c2 in pass_cols if c1 < c2]])
+    y = df["satisfied"]
+    
+    logit_interact = sm.Logit(y, X_interact).fit(disp=False)
+    coef_inter_df = pd.DataFrame({
+        "变量": logit_interact.params.index[1:],  # 去掉 const
+        "回归系数": logit_interact.params.values[1:],
+        "p值": logit_interact.pvalues.values[1:]
+    }).sort_values("回归系数", ascending=False)
+    
+    st.dataframe(coef_inter_df.style.background_gradient(cmap="RdYlGn", axis=0))
+    
+    # 可选：筛选显著交互项绘图
+    sig_inter = coef_inter_df[(coef_inter_df["p值"] < 0.05) & (coef_inter_df["变量"].str.contains("×"))]
+    if not sig_inter.empty:
+        fig_int, ax_int = plt.subplots(figsize=(7.5, 4.5), dpi=150)
+        sns.barplot(x="回归系数", y="变量", data=sig_inter, ax=ax_int)
+        ax_int.axvline(0, color="gray", linestyle="--")
+        ax_int.set_title("显著交互项对满意度的影响")
+        st.pyplot(fig_int)
+    else:
+        st.info("没有显著的两两交互项（p < 0.05）")
 
     # ====================== 时间趋势 ======================
     st.subheader("时间趋势分析（按月）")
