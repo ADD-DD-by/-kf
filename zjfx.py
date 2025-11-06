@@ -239,7 +239,11 @@ if uploaded_files:
         for k in range(1, Xv.shape[1]):  # skip const
             vifs.append([Xv.columns[k], variance_inflation_factor(Xv.values, k)])
         vif_df = pd.DataFrame(vifs, columns=["变量","VIF"]).sort_values("VIF", ascending=False)
-        st.dataframe(vif_df.style.format("{:.2f}"))
+        # 安全显示：先确保都是数字类型
+        vif_df["VIF"] = pd.to_numeric(vif_df["VIF"], errors="coerce")
+        vif_df = vif_df.fillna(0).replace(np.inf, np.nan).round(2)
+        st.dataframe(vif_df)
+
         register_table("vif", vif_df)
 
     # 3) 非线性（分段/单调）
